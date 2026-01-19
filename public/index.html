@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>HyperParty - Remote Browser</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Hyperbeam SDK -->
+    <script src="https://unpkg.com/@hyperbeam/web@latest"></script>
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Fonte Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        glass: {
+                            surface: 'rgba(13, 13, 18, 0.90)', 
+                            border: 'rgba(255, 255, 255, 0.1)',
+                        },
+                        brand: { 500: '#8b5cf6', 600: '#7c3aed' }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background: radial-gradient(circle at 50% 0%, #1e1b4b, #000000 70%);
+            color: white;
+            height: 100dvh;
+            overflow: hidden;
+        }
+
+        .glass-panel {
+            background: var(--glass-surface);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+        }
+
+        /* TRACKPAD */
+        #trackpad-surface {
+            background: radial-gradient(circle at center, rgba(139, 92, 246, 0.05), transparent 70%), 
+                        repeating-linear-gradient(45deg, rgba(255,255,255,0.03) 0, rgba(255,255,255,0.03) 1px, transparent 1px, transparent 10px);
+            touch-action: none; 
+            cursor: crosshair;
+        }
+
+        #scroll-strip {
+            background: rgba(255, 255, 255, 0.03);
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            touch-action: none;
+        }
+        #scroll-strip:active { background: rgba(139, 92, 246, 0.2); }
+
+        /* Indicador de Rolagem */
+        #scroll-indicator {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        /* Loading Spinner */
+        .loader {
+            border: 3px solid rgba(255,255,255,0.1);
+            border-left-color: #8b5cf6;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .custom-scroll {
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+
+        .tab-content { display: none; opacity: 0; transition: opacity 0.2s; }
+        .tab-content.active { display: flex; opacity: 1; }
+    </style>
+</head>
+<body class="antialiased flex flex-col md:flex-row p-2 md:p-6 gap-3">
+
+    <!-- 1. VÍDEO (VIEWER) -->
+    <main class="w-full h-[38vh] md:h-full md:flex-1 relative z-10 shrink-0">
+        <!-- Status Indicator -->
+        <div class="absolute top-3 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-sm px-4 py-1.5 rounded-full flex items-center gap-2 z-30 border border-white/10" id="status-bar">
+            <span class="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" id="status-dot"></span>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-300" id="status-text">Conectando...</span>
+        </div>
+
+        <!-- Botão Encerrar (Apenas ícone) -->
+        <button onclick="terminateVM()" class="absolute top-3 right-3 w-8 h-8 bg-red-600/20 hover:bg-red-600 border border-red-500/50 rounded-full flex items-center justify-center z-30 transition-all text-white shadow-lg" title="Encerrar VM">
+            <i class="fa-solid fa-power-off text-xs"></i>
+        </button>
+
+        <div id="video-container" class="w-full h-full glass-panel rounded-[1.5rem] overflow-hidden relative bg-black select-none flex items-center justify-center">
+            <!-- Loading Inicial -->
+            <div id="loading-overlay" class="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black z-20">
+                <div class="loader"></div>
+                <p class="text-xs text-gray-500 uppercase tracking-widest">Iniciando Cloud Computer</p>
+            </div>
+
+            <!-- Ícone de Scroll (Feedback Visual) -->
+            <div id="scroll-indicator">
+                <i class="fa-solid fa-arrows-up-down text-white text-xl"></i>
+            </div>
+        </div>
+    </main>
+
+    <!-- 2. CONTROLES & CHAT -->
+    <aside class="flex-1 md:w-[420px] md:flex-none glass-panel rounded-[2rem] flex flex-col overflow-hidden shadow-2xl relative">
+        
+        <!-- Tab Switcher -->
+        <div class="p-3 pb-0 shrink-0">
+            <div class="bg-black/40 rounded-full p-1 flex relative border border-white/5 h-11">
+                <div id="tab-bg" class="absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] bg-brand-600 rounded-full shadow-lg transition-all duration-300"></div>
+                <button onclick="switchTab('chat')" class="flex-1 relative z-10 text-xs font-bold text-white transition-colors flex items-center justify-center gap-2" id="btn-chat"><i class="fa-regular fa-comments"></i> CHAT</button>
+                <button onclick="switchTab('control')" class="flex-1 relative z-10 text-xs font-bold text-gray-400 transition-colors flex items-center justify-center gap-2" id="btn-control"><i class="fa-solid fa-computer-mouse"></i> MOUSE</button>
+            </div>
+        </div>
+
+        <!-- ABA CHAT -->
+        <div id="tab-chat" class="tab-content active flex-col flex-1 min-h-0">
+            <div id="messages-area" class="flex-1 custom-scroll p-4 space-y-4">
+                <div class="flex justify-center my-2"><span class="text-[10px] text-gray-500 uppercase">Sessão Iniciada</span></div>
+            </div>
+            
+            <div class="p-3 bg-black/20 border-t border-white/5 shrink-0">
+                <form onsubmit="sendMsg(event)" class="flex gap-2">
+                    <input type="text" id="chat-input" placeholder="Digite..." class="flex-1 bg-white/5 border border-white/10 rounded-full px-4 py-3 text-sm text-white focus:border-brand-500 outline-none">
+                    <button type="submit" class="w-10 h-10 rounded-full bg-brand-600 text-white flex items-center justify-center"><i class="fa-solid fa-paper-plane"></i></button>
+                </form>
+            </div>
+        </div>
+
+        <!-- ABA MOUSE (TRACKPAD) -->
+        <div id="tab-control" class="tab-content flex-col flex-1 p-3 pt-2 gap-3 h-full">
+            
+            <!-- Superfície Trackpad -->
+            <div class="flex-1 relative rounded-2xl border border-white/10 overflow-hidden group bg-black/20" id="trackpad-container">
+                
+                <!-- Área Principal -->
+                <div id="trackpad-surface" class="absolute inset-0 right-12 flex flex-col items-center justify-center">
+                    <div class="text-center opacity-20 pointer-events-none select-none">
+                        <i class="fa-regular fa-hand-pointer text-3xl mb-2"></i>
+                        <p class="text-[10px] uppercase tracking-widest">Trackpad Virtual</p>
+                    </div>
+                </div>
+
+                <!-- Scroll Strip -->
+                <div id="scroll-strip" class="absolute right-0 top-0 bottom-0 w-12 flex flex-col items-center justify-center cursor-ns-resize">
+                    <i class="fa-solid fa-chevron-up text-[10px] text-gray-500 mb-1"></i>
+                    <div class="w-1 h-8 bg-white/10 rounded-full"></div>
+                    <i class="fa-solid fa-chevron-down text-[10px] text-gray-500 mt-1"></i>
+                </div>
+            </div>
+
+            <!-- Botões Físicos -->
+            <div class="h-16 shrink-0 grid grid-cols-2 gap-3">
+                <button id="btn-left" class="bg-white/5 border border-white/10 rounded-xl flex items-center justify-center active:bg-brand-600 transition shadow-lg">
+                    <span class="text-xs font-bold">CLIQUE ESQUERDO</span>
+                </button>
+                <button id="btn-right" class="bg-white/5 border border-white/10 rounded-xl flex items-center justify-center active:bg-gray-700 transition shadow-lg">
+                    <span class="text-xs font-bold text-gray-400">DIREITO</span>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <script>
+        // --- GLOBAIS ---
+        let hb = null; // Instância do Hyperbeam
+        let currentSessionId = null; // ID para encerrar depois
+        
+        // Estado do Mouse Virtual (Simulado, pois o HB usa posição absoluta)
+        let vMouseX = 0.5; // Começa no centro (0.0 a 1.0)
+        let vMouseY = 0.5;
+
+        // Elementos UI
+        const trackpad = document.getElementById('trackpad-surface');
+        const scrollStrip = document.getElementById('scroll-strip');
+        const scrollIndicator = document.getElementById('scroll-indicator');
+        const videoContainer = document.getElementById('video-container');
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        const loadingOverlay = document.getElementById('loading-overlay');
+
+        // --- INICIALIZAÇÃO HYPERBEAM ---
+        async function initHyperbeam() {
+            try {
+                // 1. Obter URL da API Serverless
+                const res = await fetch('/api/session');
+                if (!res.ok) throw new Error('Erro na API de Sessão');
+                const data = await res.json();
+                
+                currentSessionId = data.session_id;
+
+                // 2. Inicializar SDK
+                hb = await Hyperbeam(videoContainer, data.embed_url);
+
+                // 3. UI Updates
+                loadingOverlay.style.display = 'none';
+                statusDot.classList.remove('bg-yellow-500');
+                statusDot.classList.add('bg-green-500');
+                statusDot.classList.remove('animate-pulse');
+                statusText.innerText = "Conectado";
+
+            } catch (err) {
+                console.error(err);
+                statusText.innerText = "Erro ao conectar";
+                statusDot.classList.replace('bg-yellow-500', 'bg-red-500');
+            }
+        }
+
+        async function terminateVM() {
+            if (!currentSessionId) return;
+            if (!confirm("Deseja encerrar a máquina virtual agora?")) return;
+
+            statusText.innerText = "Encerrando...";
+            statusDot.classList.replace('bg-green-500', 'bg-yellow-500');
+            statusDot.classList.add('animate-pulse');
+
+            try {
+                await fetch('/api/terminate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sessionId: currentSessionId })
+                });
+                window.location.reload(); // Recarrega a página após encerrar
+            } catch (err) {
+                alert("Erro ao encerrar VM");
+                console.error(err);
+            }
+        }
+
+        // --- TRACKPAD LOGIC ---
+        let lastX = 0, lastY = 0;
+        let isScrolling = false;
+
+        trackpad.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                isScrolling = true;
+                lastY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                showScrollFeedback(true);
+            } else {
+                isScrolling = false;
+                lastX = e.touches[0].clientX;
+                lastY = e.touches[0].clientY;
+                
+                // Opcional: Clique ao tocar (MouseDown)
+                // if (hb) hb.sendEvent({ type: 'mousedown', button: 0, x: vMouseX, y: vMouseY });
+            }
+        }, {passive: false});
+
+        trackpad.addEventListener('touchmove', (e) => {
+            if(e.cancelable) e.preventDefault();
+            if (!hb) return;
+
+            if (isScrolling && e.touches.length === 2) {
+                // Scroll
+                const currentY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                const deltaY = (lastY - currentY) * 2; // Multiplicador de sensibilidade
+                
+                hb.sendEvent({ type: 'wheel', deltaY: deltaY });
+                lastY = currentY;
+
+            } else if (!isScrolling && e.touches.length === 1) {
+                // Move Mouse
+                const touch = e.touches[0];
+                const deltaX = touch.clientX - lastX;
+                const deltaY = touch.clientY - lastY;
+                
+                // Sensibilidade do Mouse
+                const sensitivity = 0.0015; 
+
+                vMouseX = Math.max(0, Math.min(1, vMouseX + (deltaX * sensitivity)));
+                vMouseY = Math.max(0, Math.min(1, vMouseY + (deltaY * sensitivity)));
+
+                hb.sendEvent({ type: 'mousemove', x: vMouseX, y: vMouseY });
+
+                lastX = touch.clientX;
+                lastY = touch.clientY;
+            }
+        }, {passive: false});
+
+        trackpad.addEventListener('touchend', (e) => {
+            isScrolling = false;
+            showScrollFeedback(false);
+            // if (hb) hb.sendEvent({ type: 'mouseup', button: 0, x: vMouseX, y: vMouseY });
+        });
+
+        // Clique no trackpad (Tap)
+        trackpad.addEventListener('click', () => {
+            if (hb) {
+                hb.sendEvent({ type: 'mousedown', button: 0, x: vMouseX, y: vMouseY });
+                setTimeout(() => {
+                    hb.sendEvent({ type: 'mouseup', button: 0, x: vMouseX, y: vMouseY });
+                }, 50);
+            }
+        });
+
+        // --- SCROLL STRIP ---
+        let stripStartY = 0;
+        scrollStrip.addEventListener('touchstart', (e) => {
+            stripStartY = e.touches[0].clientY;
+            scrollStrip.style.background = 'rgba(139, 92, 246, 0.2)';
+            showScrollFeedback(true);
+        }, {passive: false});
+
+        scrollStrip.addEventListener('touchmove', (e) => {
+            if(e.cancelable) e.preventDefault();
+            if(!hb) return;
+
+            const currentY = e.touches[0].clientY;
+            const deltaY = (stripStartY - currentY) * 2;
+            
+            hb.sendEvent({ type: 'wheel', deltaY: deltaY });
+            stripStartY = currentY;
+        }, {passive: false});
+
+        scrollStrip.addEventListener('touchend', () => {
+            scrollStrip.style.background = '';
+            showScrollFeedback(false);
+        });
+
+        // --- BOTÕES FÍSICOS ---
+        const btnLeft = document.getElementById('btn-left');
+        const btnRight = document.getElementById('btn-right');
+
+        function sendClick(buttonIndex) {
+            if(!hb) return;
+            hb.sendEvent({ type: 'mousedown', button: buttonIndex, x: vMouseX, y: vMouseY });
+            setTimeout(() => {
+                hb.sendEvent({ type: 'mouseup', button: buttonIndex, x: vMouseX, y: vMouseY });
+            }, 100);
+        }
+
+        btnLeft.addEventListener('click', () => sendClick(0));
+        btnRight.addEventListener('click', () => sendClick(2)); // 2 é botão direito geralmente
+
+        // --- UTILS ---
+        function showScrollFeedback(show) {
+            scrollIndicator.style.opacity = show ? '1' : '0';
+        }
+
+        function switchTab(tab) {
+            const bg = document.getElementById('tab-bg');
+            const chatC = document.getElementById('tab-chat');
+            const ctrlC = document.getElementById('tab-control');
+            const btnChat = document.getElementById('btn-chat');
+            const btnCtrl = document.getElementById('btn-control');
+
+            if (tab === 'chat') {
+                bg.style.transform = 'translateX(0)';
+                chatC.classList.add('active');
+                ctrlC.classList.remove('active');
+                btnChat.classList.replace('text-gray-400', 'text-white');
+                btnCtrl.classList.replace('text-white', 'text-gray-400');
+            } else {
+                bg.style.transform = 'translateX(calc(100% + 8px))';
+                ctrlC.classList.add('active');
+                chatC.classList.remove('active');
+                btnCtrl.classList.replace('text-gray-400', 'text-white');
+                btnChat.classList.replace('text-white', 'text-gray-400');
+            }
+        }
+
+        function sendMsg(e) {
+            e.preventDefault();
+            const input = document.getElementById('chat-input');
+            const area = document.getElementById('messages-area');
+            if(!input.value) return;
+
+            area.insertAdjacentHTML('beforeend', `
+                <div class="flex gap-3 flex-row-reverse animate-pulse">
+                    <div class="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center text-xs font-bold shrink-0">EU</div>
+                    <div class="bg-brand-600/50 border border-brand-500/30 px-3 py-2 rounded-2xl rounded-tr-none text-sm text-white">
+                        ${input.value}
+                    </div>
+                </div>
+            `);
+            area.scrollTop = area.scrollHeight;
+            input.value = '';
+        }
+
+        // --- START ---
+        initHyperbeam();
+        switchTab('control');
+    </script>
+</body>
+</html>

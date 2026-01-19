@@ -1,0 +1,11 @@
+{
+  "name": "hyperparty-controller",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "echo 'Deploy to Vercel to run'"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  }
+}
