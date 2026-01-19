@@ -21,21 +21,33 @@ export default async function handler(req, res) {
   }
 
   try {
-    const response = await fetch('https://engine.hyperbeam.com/v0/vm', {
+    const { sessionId } = req.query;
+    let url = 'https://engine.hyperbeam.com/v0/vm';
+    let options = {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.HB_API_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        region: 'NA', // Pode mudar para 'EU' ou 'AS'
-        timeout: {
-             absolute: 60 * 60 * 3 // 3 horas de limite
-        },
-        ublock: true // Bloqueador de anúncios
+        region: 'NA',
+        timeout: { absolute: 60 * 60 * 3 },
+        ublock: true
       })
-    });
+    };
 
+    // Se um sessionId for fornecido, tenta recuperar a sessão existente
+    if (sessionId) {
+      url = `https://engine.hyperbeam.com/v0/vm/${sessionId}`;
+      options = {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${process.env.HB_API_KEY}`
+        }
+      };
+    }
+
+    const response = await fetch(url, options);
     const data = await response.json();
 
     if (!response.ok) {
