@@ -301,18 +301,23 @@
                 if (!res.ok) throw new Error('Sessão não encontrada ou expirada');
                 const data = await res.json();
                 
-                currentSessionId = data.session_id;
+                currentSessionId = data.session_id || sessionIdParam;
+                console.log("Sessão Atual:", currentSessionId);
 
-                // 2. Inicializar SDK
-                hb = await Hyperbeam(videoContainer, data.embed_url);
-
-                // Atualiza a URL com o ID da sessão (sem recarregar) para facilitar o convite
-                if (!sessionIdParam) {
-                    window.history.replaceState({}, '', `?s=${currentSessionId}`);
+                // 2. Atualiza UI do Link (Prioridade Alta)
+                const newUrl = sessionIdParam ? window.location.href : `${window.location.origin}${window.location.pathname}?s=${currentSessionId}`;
+                
+                // Atualiza URL do navegador se necessário
+                if (!sessionIdParam && currentSessionId) {
+                    window.history.replaceState({}, '', newUrl);
                 }
                 
-                // Preenche o input visual do link
-                document.getElementById('invite-link-input').value = window.location.href;
+                // Preenche o input visual
+                const linkInput = document.getElementById('invite-link-input');
+                if(linkInput) linkInput.value = newUrl;
+
+                // 3. Inicializar SDK
+                hb = await Hyperbeam(videoContainer, data.embed_url);
 
                 // 3. UI Updates: Sucesso
                 loadingOverlay.style.display = 'none';
