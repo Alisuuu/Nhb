@@ -156,15 +156,20 @@
 
         <!-- ABA CHAT -->
         <div id="tab-chat" class="tab-content active flex-col flex-1 min-h-0">
-            <!-- Invite Banner (Always Visible for debugging/ux) -->
-            <div id="invite-banner" class="p-3 bg-brand-600/10 border-b border-brand-500/20 flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <i class="fa-solid fa-share-nodes text-brand-500 text-xs"></i>
-                    <span class="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Convide amigos</span>
+            <!-- Invite Banner (Always Visible) -->
+            <div id="invite-banner" class="p-3 bg-brand-600/10 border-b border-brand-500/20 flex flex-col gap-2">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-share-nodes text-brand-500 text-xs"></i>
+                        <span class="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Convide amigos</span>
+                    </div>
                 </div>
-                <button onclick="copyInviteLink()" class="bg-brand-600 hover:bg-brand-500 text-white text-[10px] font-bold px-3 py-1 rounded-full transition-all active:scale-95">
-                    COPIAR LINK
-                </button>
+                <div class="flex gap-2">
+                    <input type="text" id="invite-link-input" readonly value="Carregando link..." class="flex-1 bg-black/40 border border-white/10 rounded text-xs text-gray-400 px-2 py-1 outline-none select-all">
+                    <button onclick="copyInviteLink()" class="bg-brand-600 hover:bg-brand-500 text-white text-[10px] font-bold px-3 py-1 rounded transition-all active:scale-95 whitespace-nowrap">
+                        COPIAR
+                    </button>
+                </div>
             </div>
 
             <div id="messages-area" class="flex-1 custom-scroll p-4 space-y-4">
@@ -305,6 +310,9 @@
                 if (!sessionIdParam) {
                     window.history.replaceState({}, '', `?s=${currentSessionId}`);
                 }
+                
+                // Preenche o input visual do link
+                document.getElementById('invite-link-input').value = window.location.href;
 
                 // 3. UI Updates: Sucesso
                 loadingOverlay.style.display = 'none';
