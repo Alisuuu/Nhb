@@ -31,7 +31,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         region: 'NA',
-        timeout: { absolute: 60 * 60 * 3 },
+        timeout: { absolute: 60 }, // 1 minuto para teste
         ublock: true
       })
     };

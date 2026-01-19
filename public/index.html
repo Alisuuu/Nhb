@@ -153,6 +153,17 @@
 
         <!-- ABA CHAT -->
         <div id="tab-chat" class="tab-content active flex-col flex-1 min-h-0">
+            <!-- Invite Banner -->
+            <div id="invite-banner" class="hidden p-3 bg-brand-600/10 border-b border-brand-500/20 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-share-nodes text-brand-500 text-xs"></i>
+                    <span class="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Convide amigos</span>
+                </div>
+                <button onclick="copyInviteLink()" class="bg-brand-600 hover:bg-brand-500 text-white text-[10px] font-bold px-3 py-1 rounded-full transition-all active:scale-95">
+                    COPIAR LINK
+                </button>
+            </div>
+
             <div id="messages-area" class="flex-1 custom-scroll p-4 space-y-4">
                 <div class="flex justify-center my-2"><span class="text-[10px] text-gray-500 uppercase">Sessão Iniciada</span></div>
             </div>
@@ -219,6 +230,7 @@
         const btnStart = document.getElementById('btn-start');
         const btnTerminate = document.getElementById('btn-terminate');
         const btnInvite = document.getElementById('btn-invite');
+        const inviteBanner = document.getElementById('invite-banner');
 
         // --- INICIALIZAÇÃO HYPERBEAM ---
         async function initHyperbeam() {
@@ -256,6 +268,7 @@
                 statusText.innerText = "Conectado";
                 btnTerminate.classList.remove('hidden');
                 btnInvite.classList.remove('hidden');
+                inviteBanner.classList.remove('hidden');
 
             } catch (err) {
                 console.error(err);
