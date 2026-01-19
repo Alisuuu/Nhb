@@ -10,6 +10,9 @@
     
     <!-- Hyperbeam SDK -->
     <script src="https://unpkg.com/@hyperbeam/web@latest"></script>
+
+    <!-- Trystero (P2P Chat) -->
+    <script src="https://unpkg.com/trystero/dist/trystero-torrent.min.js"></script>
     
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -153,8 +156,8 @@
 
         <!-- ABA CHAT -->
         <div id="tab-chat" class="tab-content active flex-col flex-1 min-h-0">
-            <!-- Invite Banner -->
-            <div id="invite-banner" class="hidden p-3 bg-brand-600/10 border-b border-brand-500/20 flex items-center justify-between">
+            <!-- Invite Banner (Always Visible for debugging/ux) -->
+            <div id="invite-banner" class="p-3 bg-brand-600/10 border-b border-brand-500/20 flex items-center justify-between">
                 <div class="flex items-center gap-2">
                     <i class="fa-solid fa-share-nodes text-brand-500 text-xs"></i>
                     <span class="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Convide amigos</span>
@@ -232,6 +235,47 @@
         const btnInvite = document.getElementById('btn-invite');
         const inviteBanner = document.getElementById('invite-banner');
 
+        // --- P2P CHAT SETUP ---
+        let chatRoom = null;
+        let sendP2PMsg = null;
+
+        function initChat(roomId) {
+            // Configura sala P2P usando Trystero (Torrent Strategy)
+            const config = { appId: 'hyperparty-v1' };
+            chatRoom = Trystero.joinRoom(config, roomId);
+
+            // Define ação de enviar/receber mensagem
+            const [send, get] = chatRoom.makeAction('chat');
+            sendP2PMsg = send;
+
+            // Ao receber mensagem de outros
+            get((data, peerId) => {
+                appendMessage(data.text, 'OTHER', peerId.substring(0, 2));
+            });
+
+            // Feedback visual de conexão (Opcional)
+            chatRoom.onPeerJoin(peerId => console.log(`Usuário ${peerId} entrou no chat`));
+        }
+
+        function appendMessage(text, sender, label = 'EU') {
+            const area = document.getElementById('messages-area');
+            const isMe = sender === 'ME';
+            
+            const alignClass = isMe ? 'flex-row-reverse' : 'flex-row';
+            const colorClass = isMe ? 'bg-brand-600/50 border-brand-500/30 rounded-tr-none' : 'bg-white/10 border-white/5 rounded-tl-none';
+            const avatarColor = isMe ? 'bg-brand-600' : 'bg-blue-600';
+
+            area.insertAdjacentHTML('beforeend', `
+                <div class="flex gap-3 ${alignClass} animate-pulse">
+                    <div class="w-8 h-8 rounded-full ${avatarColor} flex items-center justify-center text-xs font-bold shrink-0 uppercase">${label}</div>
+                    <div class="${colorClass} border px-3 py-2 rounded-2xl text-sm text-white max-w-[80%] break-words">
+                        ${text}
+                    </div>
+                </div>
+            `);
+            area.scrollTop = area.scrollHeight;
+        }
+
         // --- INICIALIZAÇÃO HYPERBEAM ---
         async function initHyperbeam() {
             // Verifica se já existe um sessionId na URL
@@ -269,6 +313,9 @@
                 btnTerminate.classList.remove('hidden');
                 btnInvite.classList.remove('hidden');
                 inviteBanner.classList.remove('hidden');
+
+                // 4. Iniciar Chat P2P
+                initChat(currentSessionId);
 
             } catch (err) {
                 console.error(err);
@@ -456,18 +503,17 @@
         function sendMsg(e) {
             e.preventDefault();
             const input = document.getElementById('chat-input');
-            const area = document.getElementById('messages-area');
-            if(!input.value) return;
+            const text = input.value.trim();
+            if(!text) return;
 
-            area.insertAdjacentHTML('beforeend', `
-                <div class="flex gap-3 flex-row-reverse animate-pulse">
-                    <div class="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center text-xs font-bold shrink-0">EU</div>
-                    <div class="bg-brand-600/50 border border-brand-500/30 px-3 py-2 rounded-2xl rounded-tr-none text-sm text-white">
-                        ${input.value}
-                    </div>
-                </div>
-            `);
-            area.scrollTop = area.scrollHeight;
+            // Envia para os outros (P2P)
+            if(sendP2PMsg) {
+                sendP2PMsg({ text: text });
+            }
+
+            // Mostra na minha tela
+            appendMessage(text, 'ME');
+
             input.value = '';
         }
 
